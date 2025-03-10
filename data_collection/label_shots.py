@@ -1,31 +1,78 @@
+import os
 import cv2
 import pandas as pd
 
-df = pd.read_csv("data_collection/labeled_shooting_data.csv")
-df["Shot_Label"] = None  # Add label column
+PROCESSED_FOLDER = "processed_videos"
+OUTPUT_CSV = "labeled_shooting_data.csv"
 
-cap = cv2.VideoCapture("player_shooting.mp4")
-frame_count = 0
+def label_shots():
+    """Manually labels shots as Made (M) or Missed (X) while watching the full video."""
+    video_files = [f for f in os.listdir(PROCESSED_FOLDER) if f.endswith(('.mp4', '.avi', '.mov'))]
 
-while cap.isOpened():
-    ret, frame = cap.read()
-    if not ret:
-        break
+    if not video_files:
+        print("❌ No processed videos found!")
+        return
 
-    cv2.imshow("Label Shots: Press 'M' for Make, 'X' for Miss", frame)
-    key = cv2.waitKey(0) & 0xFF
+    labels = []
 
-    if key == ord('m'):
-        df.loc[frame_count, "Shot_Label"] = 1  # Made
-    elif key == ord('x'):
-        df.loc[frame_count, "Shot_Label"] = 0  # Missed
-    else:
-        continue  # Ignore other keys
+    for video in video_files:
+        video_path = os.path.join(PROCESSED_FOLDER, video)
+        cap = cv2.VideoCapture(video_path)
 
-    frame_count += 1
+        print(f"🎥 Now labeling: {video}")
+        shot_count = 1
+        paused = False
 
-cap.release()
-cv2.destroyAllWindows()
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break  # Video has ended
 
-df.to_csv("data_collection/labeled_shooting_data.csv", index=False)
-print("Shots labeled and saved!")
+            frame_resized = cv2.resize(frame, (800, 600))
+            cv2.putText(frame_resized, "Press SPACE to pause, 'M' for Made, 'X' for Missed, 'Q' to Quit", 
+                        (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+            cv2.imshow("Shot Labeling", frame_resized)
+            key = cv2.waitKey(30) & 0xFF  # 30ms delay for smooth playback
+
+            if key == ord(' '):  # Pause/Resume with SPACE
+                paused = not paused
+                while paused:
+                    key = cv2.waitKey(0) & 0xFF
+                    if key == ord(' '):  # Resume playback
+                        paused = False
+                    elif key == ord('m'):  # Label as Made
+                        labels.append([video, shot_count, "Made"])
+                        print(f"✅ Shot {shot_count} labeled as Made")
+                        shot_count += 1
+                    elif key == ord('x'):  # Label as Missed
+                        labels.append([video, shot_count, "Missed"])
+                        print(f"❌ Shot {shot_count} labeled as Missed")
+                        shot_count += 1
+                    elif key == ord('q'):  # Quit labeling
+                        paused = False
+                        cap.release()
+                        cv2.destroyAllWindows()
+                        save_labels(labels)
+                        return
+
+            elif key == ord('q'):  # Quit immediately
+                cap.release()
+                cv2.destroyAllWindows()
+                save_labels(labels)
+                return
+
+        cap.release()
+        cv2.destroyAllWindows()
+
+    save_labels(labels)
+
+def save_labels(labels):
+    """Save labeled data to CSV"""
+    df = pd.DataFrame(labels, columns=["Video", "Shot_Number", "Label"])
+    os.makedirs(os.path.dirname(f"data_collection/{OUTPUT_CSV}"), exist_ok=True)
+    df.to_csv(OUTPUT_CSV, index=False)
+    print(f"📊 Shot labels saved to {OUTPUT_CSV}")
+
+if __name__ == "__main__":
+    label_shots()
