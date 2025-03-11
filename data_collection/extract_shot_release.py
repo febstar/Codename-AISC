@@ -1,10 +1,11 @@
 import os
 import cv2
 import mediapipe as mp
-import numpy as np
+import csv
 
 PROCESSED_FOLDER = "processed_videos"
-OUTPUT_FOLDER = "data_collection/release_frames"
+OUTPUT_FOLDER = "release_frames"
+CSV_FILE = "shot_release_data.csv"
 
 if not os.path.exists(OUTPUT_FOLDER):
     os.makedirs(OUTPUT_FOLDER)
@@ -13,10 +14,17 @@ if not os.path.exists(OUTPUT_FOLDER):
 mp_pose = mp.solutions.pose
 pose = mp_pose.Pose()
 
+# Initialize CSV file if not exists
+if not os.path.exists(CSV_FILE):
+    with open(CSV_FILE, mode="w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow(["Video Name", "Frame Number", "Timestamp (s)", "Wrist Y", "Elbow Y"])
+
 def detect_shot_release(video_path):
-    """Detects the exact moment the ball leaves the player's hand."""
+    """Detects the exact moment the ball leaves the player's hand and logs it to CSV."""
     cap = cv2.VideoCapture(video_path)
     frame_count = 0
+    fps = cap.get(cv2.CAP_PROP_FPS)  # Get frames per second
     video_name = os.path.splitext(os.path.basename(video_path))[0]
 
     prev_wrist_y = None
@@ -39,17 +47,16 @@ def detect_shot_release(video_path):
             wrist = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST]
             elbow = landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW]
 
-            wrist_y = wrist.y  # Y-coordinate (higher = smaller value)
+            wrist_y = wrist.y
+            elbow_y = elbow.y
 
             if prev_wrist_y is None:
                 prev_wrist_y = wrist_y
                 peak_wrist_y = wrist_y
 
-            # Update peak wrist height if the wrist moves upward
             if wrist_y < peak_wrist_y:
                 peak_wrist_y = wrist_y
 
-            # Detect release: when wrist starts dropping significantly
             if wrist_y > peak_wrist_y + 0.05 and not release_detected:
                 release_detected = True
                 release_frame = frame
@@ -58,9 +65,18 @@ def detect_shot_release(video_path):
             release_path = os.path.join(OUTPUT_FOLDER, f"{video_name}_release.jpg")
             cv2.imwrite(release_path, release_frame)
             print(f"📸 Shot release frame saved: {release_path}")
+
+            # Calculate timestamp
+            timestamp = frame_count / fps if fps > 0 else 0
+
+            # Append data to CSV
+            with open(CSV_FILE, mode="a", newline="") as file:
+                writer = csv.writer(file)
+                writer.writerow([video_name, frame_count, round(timestamp, 2), round(wrist_y, 4), round(elbow_y, 4)])
+
             break  # Stop after detecting the first release
 
-        prev_wrist_y = wrist_y  # Store previous wrist position for next frame
+        prev_wrist_y = wrist_y
 
     cap.release()
 
