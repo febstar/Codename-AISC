@@ -5,7 +5,7 @@ import csv
 
 PROCESSED_FOLDER = "processed_videos"
 OUTPUT_FOLDER = "release_frames"
-CSV_FILE = "shot_release_data.csv"
+CSV_FILE = "release_data/shot_release.csv"
 
 if not os.path.exists(OUTPUT_FOLDER):
     os.makedirs(OUTPUT_FOLDER)
@@ -18,13 +18,13 @@ pose = mp_pose.Pose()
 if not os.path.exists(CSV_FILE):
     with open(CSV_FILE, mode="w", newline="") as file:
         writer = csv.writer(file)
-        writer.writerow(["Video Name", "Frame Number", "Timestamp (s)", "Wrist Y", "Elbow Y"])
+        writer.writerow(["Video", "Frame Number", "Timestamp (s)", "Wrist Y", "Elbow Y"])
 
 def detect_shot_release(video_path):
     """Detects the exact moment the ball leaves the player's hand and logs it to CSV."""
     cap = cv2.VideoCapture(video_path)
     frame_count = 0
-    fps = cap.get(cv2.CAP_PROP_FPS)  # Get frames per second
+    fps = cap.get(cv2.CAP_PROP_FPS)  
     video_name = os.path.splitext(os.path.basename(video_path))[0]
 
     prev_wrist_y = None
@@ -44,11 +44,8 @@ def detect_shot_release(video_path):
         if results.pose_landmarks:
             landmarks = results.pose_landmarks.landmark
 
-            wrist = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST]
-            elbow = landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW]
-
-            wrist_y = wrist.y
-            elbow_y = elbow.y
+            wrist_y = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y
+            elbow_y = landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW].y
 
             if prev_wrist_y is None:
                 prev_wrist_y = wrist_y
@@ -66,24 +63,20 @@ def detect_shot_release(video_path):
             cv2.imwrite(release_path, release_frame)
             print(f"📸 Shot release frame saved: {release_path}")
 
-            # Calculate timestamp
             timestamp = frame_count / fps if fps > 0 else 0
 
-            # Append data to CSV
             with open(CSV_FILE, mode="a", newline="") as file:
                 writer = csv.writer(file)
                 writer.writerow([video_name, frame_count, round(timestamp, 2), round(wrist_y, 4), round(elbow_y, 4)])
 
-            break  # Stop after detecting the first release
+            break  
 
         prev_wrist_y = wrist_y
 
     cap.release()
 
 def process_all_videos():
-    """Runs shot release detection on all processed videos."""
     video_files = [f for f in os.listdir(PROCESSED_FOLDER) if f.endswith(('.mp4', '.avi', '.mov'))]
-
     if not video_files:
         print("❌ No processed videos found!")
         return

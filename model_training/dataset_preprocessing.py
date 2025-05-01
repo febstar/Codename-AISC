@@ -1,115 +1,110 @@
 import os
 import pandas as pd
-import numpy as np
-from tensorflow.keras.applications import MobileNetV2
-from tensorflow.keras.preprocessing import image
-from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
-from sklearn.preprocessing import StandardScaler
 
-# Paths to datasets
-DATA_FOLDER = "data_collection/processed_data"
-LABELS_FILE = "data_collection/labeled_shooting_data.csv"
-RELEASE_FILE = "data_collection/shot_release_data.csv"
-IMAGE_FOLDER = "data_collection/release_frames"  # Folder containing release frame images
-OUTPUT_FILE = "final_shooting_dataset.csv"
+# File Paths
+PROCESSED_DATA_FOLDER = "data_collection/processed_data"
+RELEASE_CSV = "data_collection/release_data/shot_release.csv"
+LABELS_CSV = "data_collection/labeled_shooting_data.csv"
+OUTPUT_CSV = "final_shot_dataset.csv"
 
-# Load MobileNetV2 model (without top layers)
-model = MobileNetV2(weights='imagenet', include_top=False, pooling='avg')
-
-def extract_image_features(img_path):
-    if not os.path.exists(img_path):
-        return np.zeros((1280,))  # Return zero vector if image is missing
-    img = image.load_img(img_path, target_size=(224, 224))
-    img_array = image.img_to_array(img)
-    img_array = np.expand_dims(img_array, axis=0)
-    img_array = preprocess_input(img_array)
-    features = model.predict(img_array)
-    return features.flatten()
-
-# Load processed CSV files
-def load_processed_data():
-    all_data = []
-    for file in os.listdir(DATA_FOLDER):
-        if file.endswith("_data.csv"):
-            df = pd.read_csv(os.path.join(DATA_FOLDER, file))
-            df["Video"] = file.replace("_data.csv", "")
-            all_data.append(df)
-    return pd.concat(all_data, ignore_index=True) if all_data else None
-
-# Load shot labels
-def load_shot_labels():
-    return pd.read_csv(LABELS_FILE) if os.path.exists(LABELS_FILE) else None
-
-# Load shot release data
-def load_shot_release():
-    return pd.read_csv(RELEASE_FILE) if os.path.exists(RELEASE_FILE) else None
-
-# Merge datasets
-def merge_datasets(processed_df, labels_df, release_df):
-    # Merge only if 'Shot_Number' exists
-    if labels_df is not None and "Shot_Number" in labels_df.columns and "Shot_Number" in processed_df.columns:
-        processed_df = processed_df.merge(labels_df, on=["Video", "Shot_Number"], how="left")
-    else:
-        print("⚠️ Warning: 'Shot_Number' column missing, skipping labels merge!")
-
-    if release_df is not None and "Frame" in release_df.columns and "Frame" in processed_df.columns:
-        processed_df = processed_df.merge(release_df, on=["Video", "Frame"], how="left")
-    else:
-        print("⚠️ Warning: 'Frame' column missing, skipping release data merge!")
-
-    return processed_df
-
-
-# Extract image features for each shot release frame
-def add_image_features(df):
-    print("🖼️ Extracting image features...")
-    image_features = []
-    for _, row in df.iterrows():
-        img_filename = f"{row['Video']}_frame_{int(row['Frame'])}.jpg"
-        img_path = os.path.join(IMAGE_FOLDER, img_filename)
-        image_features.append(extract_image_features(img_path))
+def load_data():
+    """Loads all processed video CSVs, the shot release CSV, and shot labels CSV."""
     
-    image_features = np.array(image_features)
-    feature_columns = [f"img_feature_{i}" for i in range(image_features.shape[1])]
-    image_df = pd.DataFrame(image_features, columns=feature_columns)
-    df = df.reset_index(drop=True)
-    df = pd.concat([df, image_df], axis=1)
-    return df
+    # Load processed shooting data
+    processed_files = [f for f in os.listdir(PROCESSED_DATA_FOLDER) if f.endswith("_data.csv")]
+    processed_data = {}
 
-# Normalize features
-def normalize_features(df):
-    scaler = StandardScaler()
-    angle_cols = ["Elbow_Angle", "Shoulder_Angle", "Wrist_Angle", "Hip_Angle", "Knee_Angle"]
-    df[angle_cols] = scaler.fit_transform(df[angle_cols])
-    return df
+    if not processed_files:
+        print("❌ No processed data files found!")
+        return {}, None, None
 
-# Handle missing values
-def clean_data(df):
-    df.dropna(inplace=True)
-    return df
+    for file in processed_files:
+        video_name = file.replace("_data.csv", "")
+        df = pd.read_csv(os.path.join(PROCESSED_DATA_FOLDER, file))
+        processed_data[video_name] = df
 
-# Main preprocessing function
-def preprocess_data():
-    print("🔍 Loading data...")
-    processed_df = load_processed_data()
-    labels_df = load_shot_labels()
-    release_df = load_shot_release()
+    # Load shot release data
+    if os.path.exists(RELEASE_CSV):
+        release_df = pd.read_csv(RELEASE_CSV)
+    else:
+        print(f"⚠️ Missing {RELEASE_CSV}")
+        return processed_data, None, None
+
+    # Load labeled shots data
+    if os.path.exists(LABELS_CSV):
+        labels_df = pd.read_csv(LABELS_CSV)
+    else:
+        print(f"⚠️ Missing {LABELS_CSV}")
+        return processed_data, release_df, None
+
+    return processed_data, release_df, labels_df
+
+def match_release_frames(processed_data, release_df):
+    """Extracts key angles at the release frame for each shot."""
+    release_features = []
+
+    if release_df is None:
+        print("❌ No release data found, skipping feature extraction!")
+        return pd.DataFrame()
+
+    for _, row in release_df.iterrows():
+        video_name = row["Video"]
+        frame_number = int(row["Frame Number"])  # Ensure it's an integer
+
+        if video_name in processed_data:
+            video_data = processed_data[video_name]
+
+            # Find the frame closest to the release
+            shot_data = video_data[video_data["Frame"] == frame_number]
+
+            if not shot_data.empty:
+                angles = shot_data.iloc[0][["Elbow_Angle", "Shoulder_Angle", "Wrist_Angle", "Hip_Angle", "Knee_Angle"]]
+                release_features.append([video_name, frame_number] + list(angles))
+            else:
+                print(f"⚠️ No matching frame {frame_number} found in {video_name}")
+
+    if not release_features:
+        print("⚠️ No valid release features extracted!")
+        return pd.DataFrame()
+
+    return pd.DataFrame(release_features, columns=["Video", "Frame", "Elbow_Angle", "Shoulder_Angle", "Wrist_Angle", "Hip_Angle", "Knee_Angle"])
+
+def merge_labels(release_features, labels_df):
+    """Assigns 'Made' or 'Missed' labels to each shot."""
+    if release_features.empty or labels_df is None:
+        print("❌ Missing release features or labels, skipping merging!")
+        return pd.DataFrame()
+
+    final_data = release_features.merge(labels_df, on="Video", how="inner")
+
+    if final_data.empty:
+        print("⚠️ No matching labels found, check if videos are named correctly!")
     
-    if processed_df is None:
-        print("❌ No processed data found!")
+    return final_data
+
+def save_final_dataset(final_data):
+    """Saves the cleaned dataset to a CSV file."""
+    if final_data.empty:
+        print("❌ No data to save!")
         return
-    
-    print("🔄 Merging datasets...")
-    merged_df = merge_datasets(processed_df, labels_df, release_df)
-    print("📸 Adding image features...")
-    merged_df = add_image_features(merged_df)
-    print("📏 Normalizing angles...")
-    normalized_df = normalize_features(merged_df)
-    print("🧹 Cleaning data...")
-    final_df = clean_data(normalized_df)
-    
-    final_df.to_csv(OUTPUT_FILE, index=False)
-    print(f"✅ Preprocessing complete! Data saved to {OUTPUT_FILE}")
+
+    final_data.to_csv(OUTPUT_CSV, index=False)
+    print(f"📊 Final dataset saved to {OUTPUT_CSV}")
 
 if __name__ == "__main__":
-    preprocess_data()
+    print("🔄 Loading data...")
+    processed_data, release_df, labels_df = load_data()
+
+    if not processed_data:
+        print("❌ No processed data available. Exiting.")
+        exit()
+
+    print("📌 Extracting release frame data...")
+    release_features = match_release_frames(processed_data, release_df)
+
+    print("🏀 Assigning shot labels...")
+    final_data = merge_labels(release_features, labels_df)
+
+    print("💾 Saving final dataset...")
+    save_final_dataset(final_data)
+    print("✅ Data preprocessing complete!")

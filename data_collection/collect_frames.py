@@ -81,7 +81,7 @@ def process_video(video_path):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python process_video.py <video_file>")
+        print("Usage: python collect_frames.py <video_file>")
     else:
         video_file = sys.argv[1]
         process_video(video_file)
