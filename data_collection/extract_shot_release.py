@@ -2,6 +2,8 @@ import os
 import cv2
 import mediapipe as mp
 import csv
+from concurrent.futures import ProcessPoolExecutor
+import multiprocessing
 
 PROCESSED_FOLDER = "processed_videos"
 OUTPUT_FOLDER = "release_frames"
@@ -81,10 +83,12 @@ def process_all_videos():
         print("❌ No processed videos found!")
         return
 
-    for video in video_files:
-        video_path = os.path.join(PROCESSED_FOLDER, video)
-        print(f"🔍 Detecting shot release in: {video}")
-        detect_shot_release(video_path)
+    video_paths = [os.path.join(PROCESSED_FOLDER, f) for f in video_files]
+    
+    print(f"🚀 Processing {len(video_paths)} videos in parallel...")
+
+    with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+        executor.map(detect_shot_release, video_paths)
 
 if __name__ == "__main__":
     process_all_videos()

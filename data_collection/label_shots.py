@@ -20,7 +20,9 @@ def label_shots():
         existing_labels = []
 
     for video in video_files:
-        if video in existing_labels:
+        video_name = os.path.splitext(video)[0]  # Remove extension
+
+        if video_name in existing_labels:
             print(f"⚠️ Skipping {video} (Already labeled)")
             continue  # Skip already labeled videos
 
@@ -57,12 +59,12 @@ def label_shots():
                 key = cv2.waitKey(0) & 0xFF  # Wait indefinitely
 
                 if key == ord('m'):  # Label as Made
-                    save_label(video, "Made")
-                    print(f"✅ {video} labeled as Made")
+                    save_label(video_name, "Made")
+                    print(f"✅ {video_name} labeled as Made")
                     break  
                 elif key == ord('x'):  # Label as Missed
-                    save_label(video, "Missed")
-                    print(f"❌ {video} labeled as Missed")
+                    save_label(video_name, "Missed")
+                    print(f"❌ {video_name} labeled as Missed")
                     break  
                 elif key == ord('q'):  # Quit labeling
                     cap.release()
@@ -71,13 +73,11 @@ def label_shots():
 
         cap.release()
         cv2.destroyAllWindows()
+        print(f"🎬 Finished labeling {video}")
 
-        print(f"🎬 Finished labeling {video}, exiting...")
-        return  # Exit after labeling one video
-
-def save_label(video, label):
+def save_label(video_name, label):
     """Save labeled data to CSV"""
-    df = pd.DataFrame([[video, label]], columns=["Video", "Label"])
+    df = pd.DataFrame([[video_name, label]], columns=["Video", "Label"])
 
     if os.path.exists(OUTPUT_CSV):  # Append if file exists
         df.to_csv(OUTPUT_CSV, mode='a', header=False, index=False)
