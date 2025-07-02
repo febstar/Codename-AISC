@@ -1,3 +1,5 @@
+# data_collection/extract_shot_release.py
+
 import os
 import cv2
 import mediapipe as mp

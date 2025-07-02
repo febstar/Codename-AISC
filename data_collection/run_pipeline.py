@@ -9,6 +9,10 @@ subprocess.run(["python", "process_videos.py"])
 print("\n🔍 Step 2: Extracting shot release frames...")
 subprocess.run(["python", "extract_shot_release.py"])
 
+# Step 2: Extract shot sequence
+print("\n🔍 Step 2: Extracting shot sequences...")
+subprocess.run(["python", "extract_shot_sequence.py"])
+
 # Step 3: Manually label shots
 print("\n🏀 Step 3: Launching manual shot labeling...")
 subprocess.run(["python", "label_shots.py"])

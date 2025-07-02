@@ -1,3 +1,4 @@
+# data_collection/collect_frames.py
 import os
 import cv2
 import mediapipe as mp
