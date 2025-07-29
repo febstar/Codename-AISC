@@ -1,6 +1,10 @@
 import os
 import subprocess
 
+# Upload videos
+print("📂 Uploading videos to the 'videos' directory...")
+subprocess.run(["python", "upload_videos.py"])
+
 # Step 1: Process all videos (This runs collect_frames.py inside it)
 print("🔄 Step 1: Processing all videos...")
 subprocess.run(["python", "process_videos.py"])

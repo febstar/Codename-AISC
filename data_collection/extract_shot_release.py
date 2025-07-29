@@ -87,10 +87,11 @@ def process_all_videos():
 
     video_paths = [os.path.join(PROCESSED_FOLDER, f) for f in video_files]
     
-    print(f"🚀 Processing {len(video_paths)} videos in parallel...")
+    print(f"🚀 Processing {len(video_paths)} videos one after another...")
 
-    with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
-        executor.map(detect_shot_release, video_paths)
+    for video_path in video_paths:
+        print(f"🎞️ Processing: {os.path.basename(video_path)}")
+        detect_shot_release(video_path)
 
 if __name__ == "__main__":
     process_all_videos()

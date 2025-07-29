@@ -1,2 +1,8 @@
 .vscode
 env
+/data_collection/videos
+/data_collection/processed_videos
+/data_collection/processed_sequences
+/dataset/raw_videos
+/dataset/shot_clips
+/data_collection/release_frames
