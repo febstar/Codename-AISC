@@ -1,16 +1,21 @@
 import os
 import cv2
 import pandas as pd
+import shutil
 
-PROCESSED_FOLDER = "processed_videos"
+PROCESSED_FOLDER = "videos"
 OUTPUT_CSV = "labeled_shooting_data.csv"
+WRONG_DETECTIONS_FOLDER = "wrong_detections"
+
+# Create wrong detections folder if it doesn't exist
+os.makedirs(WRONG_DETECTIONS_FOLDER, exist_ok=True)
 
 def label_shots():
     """Plays the video until the end, then pauses for manual labeling of shots."""
     video_files = [f for f in os.listdir(PROCESSED_FOLDER) if f.endswith(('.mp4', '.avi', '.mov'))]
 
     if not video_files:
-        print("❌ No processed videos found!")
+        print("❌ No videos found!")
         return
 
     # Load existing labels to prevent relabeling
@@ -51,8 +56,8 @@ def label_shots():
         if last_frame is not None:
             print("⏸ Video finished. Please label the shot.")
             last_frame_resized = cv2.resize(last_frame, (800, 600))
-            cv2.putText(last_frame_resized, "Press 'M' for Made, 'X' for Missed, 'Q' to Quit",
-                        (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            cv2.putText(last_frame_resized, "Press 'M'=Made, 'X'=Missed, 'R'=Remove, 'Q'=Quit",
+                        (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
             while True:  # Ensure labeling before exiting
                 cv2.imshow("Shot Labeling", last_frame_resized)
@@ -65,6 +70,12 @@ def label_shots():
                 elif key == ord('x'):  # Label as Missed
                     save_label(video_name, "Missed")
                     print(f"❌ {video_name} labeled as Missed")
+                    break  
+                elif key == ord('r'):  # Move to wrong detections
+                    cap.release()  # Release video file
+                    cv2.destroyAllWindows()  # Close the OpenCV window
+                    move_to_wrong_detections(video_path)
+                    print(f"🚮 {video_name} moved to wrong detections")
                     break  
                 elif key == ord('q'):  # Quit labeling
                     cap.release()
@@ -85,6 +96,20 @@ def save_label(video_name, label):
         df.to_csv(OUTPUT_CSV, index=False)
 
     print(f"📊 Label saved to {OUTPUT_CSV}")
+
+def move_to_wrong_detections(video_path):
+    """Move the video to the wrong detections folder"""
+    filename = os.path.basename(video_path)
+    dest_path = os.path.join(WRONG_DETECTIONS_FOLDER, filename)
+
+    # Ensure no overwrite
+    base, ext = os.path.splitext(filename)
+    counter = 1
+    while os.path.exists(dest_path):
+        dest_path = os.path.join(WRONG_DETECTIONS_FOLDER, f"{base}_{counter}{ext}")
+        counter += 1
+
+    shutil.move(video_path, dest_path)
 
 if __name__ == "__main__":
     label_shots()
