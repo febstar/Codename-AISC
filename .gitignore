@@ -6,3 +6,4 @@ env
 /dataset/raw_videos
 /dataset/shot_clips
 /data_collection/release_frames
+/data_collection/wrong_detections
