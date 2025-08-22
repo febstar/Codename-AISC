@@ -1,7 +1,7 @@
 import os
 
 # Path to the main folder containing subfolders with videos
-main_folder = r"C:\Users\User\Documents\AISC\dataset\shot_clips"
+main_folder = r"C:\Users\User\Documents\AISC\data_collection\wrong_detections"
 
 # Video file extensions to count
 video_extensions = {".mp4", ".mov", ".avi", ".mkv", ".wmv", ".flv"}
